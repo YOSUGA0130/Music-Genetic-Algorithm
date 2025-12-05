@@ -82,6 +82,11 @@ from audio_synth import synthesize_melody
         synthesize_melody(mel, "Melody/Audio/test.wav", sample_dir="samples", unit_time=180)
         #test.wav可以直接听
 ```
+- 遗传算法部分
+
+crossover（交换）：随机位置和长度交换两对父旋律的片段，返回两个孩子
+
+mutation（变异）：随机位置改变音符，返回新个体
 
 ## 5.一些问题
 - 自选旋律时长很难统一😭，目前有三段自选旋律，大家可以先听个响www。似乎随机旋律和自选旋律只需要做一种(?) 先处理随机旋律，后续有时间再找些别的音乐也行()
