@@ -15,7 +15,8 @@ project_root/
   audio_synth.py        # 根据编码数组拼合样本音频，生成完整旋律 wav
   note_encoding.py      # 处理旋律表示方式：JSON ↔ 内部数组编码
   random_melody.py      # 随机旋律生成（写入 Melody/Code & Melody/Audio）
-
+  genetic_algorithm.py  # 遗传算法(交换、变异；对旋律的移调、倒影、逆行)
+  
   samples/
     1.wav               # 钢琴琴键音频，包含全部88键A0->C8
     2.wav
