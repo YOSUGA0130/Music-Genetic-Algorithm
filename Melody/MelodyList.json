@@ -1,7 +1,4 @@
 [
-    {"name":"canon","unit_time":180,"BMP":167,"duration":26},
-    {"name":"haruhikage","unit_time":155,"BMP":97,"duration":116},
-    {"name":"fudahuang","unit_time":150, "BMP":200,"duration":26},
     {"name":"random_01","unit_time":180, "BMP":167,"duration":8},
     {"name":"random_02","unit_time":180, "BMP":167,"duration":8},
     {"name":"random_03","unit_time":180, "BMP":167,"duration":8},
@@ -16,5 +13,14 @@
     {"name":"random_12","unit_time":250, "BMP":120,"duration":11},
     {"name":"random_13","unit_time":250, "BMP":120,"duration":11},
     {"name":"random_14","unit_time":250, "BMP":120,"duration":11},
-    {"name":"random_15","unit_time":250, "BMP":120,"duration":11}
+    {"name":"random_15","unit_time":250, "BMP":120,"duration":11},
+
+    {"name":"custom_01","unit_time":180,"BMP":167,"duration":26},
+    {"name":"custom_02","unit_time":150, "BMP":200,"duration":22},
+    {"name":"custom_03","unit_time":155,"BMP":97,"duration":17},
+    {"name":"custom_04","unit_time":155,"BMP":97,"duration":17},
+
+    {"name":"canon","unit_time":180,"BMP":167,"duration":26},
+    {"name":"fudahuang","unit_time":150, "BMP":200,"duration":61},
+    {"name":"haruhikage","unit_time":155,"BMP":97,"duration":116}
 ]

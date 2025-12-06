@@ -24,6 +24,7 @@ project_root/
     88.wav
 
   Melody/
+    MelodyList.json    #列出了所有可用旋律
     Code/
       random_01.json   # 旋律的音名编码（可以查看和手动编辑）
       random_02.json
@@ -57,22 +58,23 @@ project_root/
 
 ##### 两种表示可以通过note_encoding.py中的note_to_int和int_to_note转换
 
-整体流程示意：
+流程示意：
 
-JSON（给人看/改） → note_encoding.py → 内部整数数组 → audio_synth.py 合成 → .wav 音频
+JSON（可以查看/手动修改） → note_encoding.py → 内部整数数组 → audio_synth.py 合成 → .wav 音频
 
 ##### 旋律表示的要求
-- 自选歌曲旋律：不限音域，不限节拍(?)，不限最小音符单元
-- 随机生成旋律：$\frac{4}{4}$拍，每个json元素 & 每个数组元素 时值都是一个八分音符，一小节8个元素，共四小节
+- 自选歌曲旋律：不限音域，不限节拍(?)，不限最小音符单元，长度目前取8小节
+- 随机生成旋律：四四拍，每个json元素 & 每个数组元素 时值都是一个八分音符，每小节8个元素，共4小节
 
 ## 4.已经完成的部分内容
-- Melody中包括15段随机旋律的wav和json音名编码，可以通过
+- Melody中包括15段随机旋律的wav和json音名编码(random_n)，4段自选旋律的wav和json音名编码(custom_n), 可以通过
 ```python
 from note_encoding import note_to_int
 
-    melody = note_to_int("/Melody/Code/random_0x.json") 
+    melody = note_to_int("Melody/Code/random_n.json") #或custom_n.json 
 ```
-直接获得对应melody数组
+直接获得对应melody数组。Melody/MelodyList.json 中可以查看所有可用旋律列表
+
 
 - 可以通过数组合成音频
 ```python
@@ -94,4 +96,4 @@ crossover（交换）：随机位置和长度交换两对父旋律的片段，�
 mutation（变异）：随机位置改变音符，返回新个体
 
 ## 5.一些问题
-- 自选旋律时长很难统一😭，目前有三段自选旋律，大家可以先听个响www。似乎随机旋律和自选旋律只需要做一种(?) 先处理随机旋律，后续有时间再找些别的音乐也行()
+- 目前有4段自选旋律，时长都是8小节(对于大部分歌曲而言，4小节相对有点短了www)；15段随机旋律时长都是4小节。似乎随机旋律和自选旋律只需要做一种(?) 先处理随机旋律，后续有时间再找些别的音乐也行()
