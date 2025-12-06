@@ -85,6 +85,10 @@ from audio_synth import synthesize_melody
 ```
 - 遗传算法部分
 
+run：遗传算法主框架
+
+roulette_wheel_selection函数：轮盘赌选择
+
 crossover（交换）：随机位置和长度交换两对父旋律的片段，返回两个孩子
 
 mutation（变异）：随机位置改变音符，返回新个体
