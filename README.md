@@ -123,3 +123,12 @@ retrograde_inversion（逆行倒影）：逆行倒影的复合变换
 ## 5.一些问题
 
 - 目前有 4 段自选旋律，时长都是 8 小节(对于大部分歌曲而言，4 小节相对有点短了 www)；15 段随机旋律时长都是 4 小节。似乎随机旋律和自选旋律只需要做一种(?) 先处理随机旋律，后续有时间再找些别的音乐也行()
+
+## 6.LSTM模型
+
+- 数据集：[sander-wood/melodyhub](https://huggingface.co/datasets/sander-wood/melodyhub)开源数据集中切分4/4拍4小节片段，共包含322484条训练集数据与8363条验证集数据。
+
+- 适应度函数：使用负对数似然(Negative Log-Likelihood, NLL)作为损失函数进行训练，对于进化过程中每个染色体进行困惑度(Perplexity, PPL)计算，并scale到0-1.
+
+$$Fitness = \frac{1}{PPL} = e^{-\text{NLL}} = \exp\left( \frac{1}{N} \sum_{i=1}^{N} \log P(x_i \mid x_{< i}) \right)$$
+
