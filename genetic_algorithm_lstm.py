@@ -241,7 +241,7 @@ def run(alpha: float = 0.5,
     print(f"🚀 High-Performance GA Start (Pop: {n})...")
 
     # 1. 初始化种群
-    initial_pop = [generate_random_melody(rest_probability=0.02, tie_probability=0.05) for _ in range(n)]
+    initial_pop = [generate_random_melody(rest_probability=0.01, tie_probability=0.1) for _ in range(n)]
     population = np.array(initial_pop, dtype=np.int32)
 
     # === 修复开始：分开计算总概率和相对概率 ===
@@ -444,12 +444,12 @@ def mutation_fast(mel_arr: np.ndarray) -> np.ndarray:
     pos = random.randint(0, 31)
     
     # 逻辑同原版，只是操作的是 array
-    if random.random() < 0.02: # rest_prob
+    if random.random() < 0.01: # rest_prob
         mel_arr[pos] = REST_CODE
         return mel_arr
         
     can_be_tie = (pos > 0 and mel_arr[pos - 1] != REST_CODE)
-    if can_be_tie and random.random() < 0.05: # tie_prob
+    if can_be_tie and random.random() < 0.1: # tie_prob
         mel_arr[pos] = TIE_CODE
         return mel_arr
         
@@ -682,6 +682,5 @@ if __name__ == "__main__":
         )
 
         int_to_note(mel, f"./output/genetic_algorithm_result_{idx+1}.json")
-
 
 
