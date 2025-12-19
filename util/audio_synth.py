@@ -1,11 +1,8 @@
 import os
 from typing import List
 from pydub import AudioSegment
-from note_encoding import note_to_int
-
-
-TIE_CODE = -1  #延长符
-REST_CODE = 0  #休止符
+from util.note_encoding import note_to_int
+from config import TIE_CODE, REST_CODE
 
 
 def synthesize_melody(

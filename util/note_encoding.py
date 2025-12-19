@@ -1,13 +1,11 @@
 import json
 import re
 from typing import List
+from config import REST_CODE, TIE_CODE
 
 # 88 键的 MIDI 范围
 START_MIDI = 21   # A0
 END_MIDI = 108    # C8
-
-REST_CODE = 0
-TIE_CODE = -1
 
 #音名
 PITCH_CLASSES = ["C", "#C", "D", "#D", "E", "F",

@@ -22,3 +22,9 @@ env/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 输出目录
+output/
+
+# 权重文件
+model/lstm_24.pth
