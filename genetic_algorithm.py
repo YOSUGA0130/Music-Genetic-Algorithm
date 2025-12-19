@@ -295,10 +295,11 @@ def run(alpha: float = 0.5,
     # 3. 返回迭代后适应度 ≥ α 的旋律们 (按照适应度从大到小排列)
     result = sorted([mel for mel in population if fitness(mel) >= alpha], key=fitness, reverse=True)
 
-    if result == None:
+    if len(result) == 0:
         print("没有找到适应度大于等于α的旋律")
     else:
         print("最高适应度：", fitness(result[0]))
+        print("生成乐曲数：",len(result)
 
     return result
 
