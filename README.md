@@ -1,13 +1,24 @@
-## 1. 环境与依赖
+## 1. 快速开始
 
-- 必需第三方库：
-  - `pydub`（导出音频对比听感需要）
-  - `numpy`
+- 克隆仓库：
 
-安装依赖：
+```bash
+git clone https://github.com/YOSUGA0130/Music-Genetic-Algorithm.git
+cd Music-Genetic-Algorithm
+```
+
+- 安装依赖：
 
 ```bash
 pip install -r requirements.txt
+```
+
+- 如果要使用 LSTM 神经网络，请从[https://disk.pku.edu.cn/link/AACD3AE31B31214418A077A3F157923984](1)下载 LSTM 模型权重文件 `lstm_24.pth`，放置在 `model/` 目录下
+
+- 运行主程序：
+
+```bash
+python3 main.py
 ```
 
 ## 2. 项目结构
@@ -16,14 +27,16 @@ pip install -r requirements.txt
 project_root/
   config.py             # 全局配置参数
   main.py               # 机器作曲主入口
-  genetics.py           # 遗传算法核心逻辑（进化、交叉、变异、变换）
-  population.py         # 种群生成逻辑
+  population.py         # 初始种群生成逻辑
+  genetics.py           # 遗传操作
   fitness_rule.py       # 基于规则的适应度函数
   fitness_lstm.py       # 基于LSTM的适应度函数
-  fitness_llm.py        # 基于LLM的适应度函数
+  fitness_llm.py        # 基于prompt工程的适应度函数
 
   model/
     lstm.py             # LSTM模型定义
+    lstm_24.pth         # LSTM模型权重文件
+    train.ipynb         # LSTM模型训练代码
 
   util/
     audio_synth.py      # 音频合成工具
@@ -123,7 +136,8 @@ retrograde_inversion（逆行倒影）：逆行倒影的复合变换
 ## 6.LSTM 模型
 
 - 数据集：[sander-wood/melodyhub](https://huggingface.co/datasets/sander-wood/melodyhub)开源数据集中切分 4/4 拍 4 小节片段，共包含 322484 条训练集数据与 8363 条验证集数据。
-
 - 适应度函数：使用负对数似然(Negative Log-Likelihood, NLL)作为损失函数进行训练，对于进化过程中每个染色体进行困惑度(Perplexity, PPL)计算，并 scale 到 0-1.
 
-$$Fitness = \frac{1}{PPL} = e^{-\text{NLL}} = \exp\left( \frac{1}{N} \sum_{i=1}^{N} \log P(x_i \mid x_{< i}) \right)$$
+$$
+Fitness = \frac{1}{PPL} = e^{-\text{NLL}} = \exp\left( \frac{1}{N} \sum_{i=1}^{N} \log P(x_i \mid x_{< i}) \right)
+$$
