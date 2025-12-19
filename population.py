@@ -1,16 +1,8 @@
 import random
 from typing import List
-from note_encoding import int_to_note
-from audio_synth import synthesize_melody
-
-
-TIE_CODE = -1 #延长符
-REST_CODE = 0 #休止符
-MIN_NOTE_CODE = 33   # F3
-MAX_NOTE_CODE = 59  # G5
-
-NUM_BARS = 4
-UNITS_PER_BAR = 8
+from util.note_encoding import int_to_note
+from util.audio_synth import synthesize_melody
+from config import *
 
 
 def generate_random_melody(

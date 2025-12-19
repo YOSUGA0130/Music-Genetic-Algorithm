@@ -14,27 +14,23 @@ pip install -r requirements.txt
 
 ```txt
 project_root/
-  audio_synth.py        # 根据编码数组拼合样本音频，生成完整旋律 wav
-  note_encoding.py      # 处理旋律表示方式：JSON ↔ 内部数组编码
-  random_melody.py      # 随机旋律生成（写入 Melody/Code & Melody/Audio）
-  genetic_algorithm.py  # 遗传算法(交换、变异；对旋律的移调、倒影、逆行)
+  config.py             # 全局配置参数
+  main.py               # 机器作曲主入口
+  genetics.py           # 遗传算法核心逻辑（进化、交叉、变异、变换）
+  population.py         # 种群生成逻辑
+  fitness_rule.py       # 基于规则的适应度函数
+  fitness_lstm.py       # 基于LSTM的适应度函数
+  fitness_llm.py        # 基于LLM的适应度函数
 
-  samples/
-    1.wav               # 钢琴琴键音频，包含全部88键A0->C8
-    2.wav
-    ...
-    88.wav
+  model/
+    lstm.py             # LSTM模型定义
 
-  Melody/
-    MelodyList.json    #列出了所有可用旋律
-    Code/
-      random_01.json   # 旋律的音名编码（可以查看和手动编辑）
-      random_02.json
-      ...
-    Audio/
-      random_01.wav    # 与上面 json 对应的合成音频
-      random_02.wav
-      ...
+  util/
+    audio_synth.py      # 音频合成工具
+    note_encoding.py    # 音符编码工具
+
+  samples/              # 钢琴采样文件
+  Melody/               # 旋律数据
 ```
 
 ## 3. 当前采用的旋律表示方式
@@ -124,11 +120,10 @@ retrograde_inversion（逆行倒影）：逆行倒影的复合变换
 
 - 目前有 4 段自选旋律，时长都是 8 小节(对于大部分歌曲而言，4 小节相对有点短了 www)；15 段随机旋律时长都是 4 小节。似乎随机旋律和自选旋律只需要做一种(?) 先处理随机旋律，后续有时间再找些别的音乐也行()
 
-## 6.LSTM模型
+## 6.LSTM 模型
 
-- 数据集：[sander-wood/melodyhub](https://huggingface.co/datasets/sander-wood/melodyhub)开源数据集中切分4/4拍4小节片段，共包含322484条训练集数据与8363条验证集数据。
+- 数据集：[sander-wood/melodyhub](https://huggingface.co/datasets/sander-wood/melodyhub)开源数据集中切分 4/4 拍 4 小节片段，共包含 322484 条训练集数据与 8363 条验证集数据。
 
-- 适应度函数：使用负对数似然(Negative Log-Likelihood, NLL)作为损失函数进行训练，对于进化过程中每个染色体进行困惑度(Perplexity, PPL)计算，并scale到0-1.
+- 适应度函数：使用负对数似然(Negative Log-Likelihood, NLL)作为损失函数进行训练，对于进化过程中每个染色体进行困惑度(Perplexity, PPL)计算，并 scale 到 0-1.
 
 $$Fitness = \frac{1}{PPL} = e^{-\text{NLL}} = \exp\left( \frac{1}{N} \sum_{i=1}^{N} \log P(x_i \mid x_{< i}) \right)$$
-

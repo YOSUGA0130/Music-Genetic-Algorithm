@@ -1,2 +1,5 @@
 pydub>=0.25.0
-numpy>=2.3.5
+numpy>=1.24.0
+torch
+music21
+tqdm
