@@ -1,19 +1,3 @@
-# note_encoding.py
-"""
-音名 <-> 整数编码 转换工具
-
-旋律的音名编码存于/Melody/Code中, 使用音名记录, 便于查看和修改.
-处理音符过程中, 如课件所示, 使用数组记录, 便于遗传算法和函数建立.
-
-
-约定：
- -1 : 延长一个八分音符
-  0 : 休止符
-  1-88 : 钢琴 88 键，从 A0 到 C8，按音高从低到高依次编号,随机旋律是 33(F3) 到 59(G5) 之间，自选音乐不限
-
-  升号(#)降号(b)加在音之前
-"""
-
 import json
 import re
 from typing import List
@@ -25,7 +9,7 @@ END_MIDI = 108    # C8
 REST_CODE = 0
 TIE_CODE = -1
 
-# 以升号为主的十二平均律音名
+#音名
 PITCH_CLASSES = ["C", "#C", "D", "#D", "E", "F",
                  "#F", "G", "#G", "A", "#A", "B"]
 PC_TO_INDEX = {pc: i for i, pc in enumerate(PITCH_CLASSES)}
@@ -33,11 +17,7 @@ PC_TO_INDEX = {pc: i for i, pc in enumerate(PITCH_CLASSES)}
 
 def _note_name_to_midi(note: str) -> int:
     """
-    将单个音名转换为编号(21~108)。
-
-    支持：
-    - C4, #F3, Gb3, A5 等
-    - 不区分大小写
+    将单个音名转换为midi
     """
     m = re.fullmatch(r"([#b]?)([A-Ga-g])(\d)", note.strip())
     if not m:
@@ -47,12 +27,11 @@ def _note_name_to_midi(note: str) -> int:
     letter = letter.upper()
     octave = int(octave_str)
 
-    # 自然音索引（内部统一用升号体系）
     if letter not in PC_TO_INDEX:
-        raise ValueError(f"不支持的音名: {note!r}")
+        raise ValueError(f"不支持音名: {note!r}")
     base_idx = PC_TO_INDEX[letter]
 
-    # 处理升降号
+    # 升降号
     if accidental == "#":
         idx = (base_idx + 1) % 12
     elif accidental == "b":
@@ -72,7 +51,7 @@ def _note_name_to_midi(note: str) -> int:
 
 def _midi_to_note_name(midi: int) -> str:
     """
-    将编号(21~108)转换为音名字符串, 使用升号。
+    将midi转换为音名字符串, 使用升号。
     """
     if not (START_MIDI <= midi <= END_MIDI):
         raise ValueError(
@@ -87,21 +66,14 @@ def _midi_to_note_name(midi: int) -> str:
 
 def note_to_int(json_path: str) -> List[int]:
     """
-    函数 1:
-    读取只包含「音名」的 JSON 文件(传入json文件路径),
-    返回整数数组。
-
-    JSON 例：
-    ["C5", "B4", "C5", "E4", "G4", "-", "B4", "0", "F3"]
-
-    返回例：
-    [xx, xx, ..., -1, 0, ...]
+    读取音名旋律文件,
+    返回数组。
     """
     with open(json_path, "r", encoding="utf-8") as f:
         tokens = json.load(f)
 
     if not isinstance(tokens, list):
-        raise ValueError("JSON 文件内容必须是数组(list)")
+        raise ValueError("JSON 文件内容必须是数组")
 
     result: List[int] = []
 
@@ -125,7 +97,6 @@ def note_to_int(json_path: str) -> List[int]:
 
 def int_to_note(codes: List[int], json_path: str) -> None:
     """
-    函数 2:
     读取一个整数数组,传入数组 and 保存json文件的位置和文件名
     转换为音名字符串数组，并保存为 JSON 文件, 默认保存位置/Melody/Code
 
@@ -140,7 +111,7 @@ def int_to_note(codes: List[int], json_path: str) -> None:
         else:
             if not (1 <= code <= 88):
                 raise ValueError(
-                    f"编码 {code} 不在合法音高编码范围 1..88 或特例 -1,0 内"
+                    f"编码 {code} 不在合法音高编码范围内"
                 )
             midi = code + 20  # 1->21, 88->108
             note_name = _midi_to_note_name(midi)
