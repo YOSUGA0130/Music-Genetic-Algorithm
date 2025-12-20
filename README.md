@@ -158,9 +158,10 @@ $$
 - 在迭代后期种群同质化，交叉和音乐变换没有引入新变化，分数卡住。
 - 修改后，run 在检测到超过 150 轮分数不变后会把变异率提到 0.9（设置的）。实测部分解决了超过 500 轮后不动的情况。
 
-### 3. 支持 8 小节
+### 3. 支持 1-16 小节
 
 - 在 run 和 fitness、fitness_enhance 中加了 num_bars 参数
+- 采用了根据生成小节数，线性控制权重的方法，目前可支持 1-16 小节生成
 
 ### 4. fitness_enhanced
 
@@ -179,5 +180,6 @@ $$
 ### 5. 实测调参结果
 
 - ```
-  result = run(alpha=0.85, n=20, m=2000, look_ahead_steps=15, num_bars=8)
+  result = run(alpha=0.85, n=20, m=2000, look_ahead_steps=15, fitness=fitness_enhanced,num_bars=8)
+  result = run(alpha=0.85,n=20,look_ahead_steps=20, m=500,fitness=fitness_enhanced,num_bars=16)
   ```
