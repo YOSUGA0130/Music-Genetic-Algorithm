@@ -309,23 +309,23 @@ def fitness_batch(melodies_array: np.ndarray) -> np.ndarray:
     # === Part 4: 综合评分 ===
     # 权重分配：1小节 vs 3小节 -> 0.25 : 0.75
     final_scores = 0.25 * rule_scores + 0.75 * lstm_final_scores
-    
-    return final_scores
+
+    return final_scores * 2.0
     
 
 def run(alpha: float = 0.5,
         m = 200,
         n = 10000, 
         crossover_probability = 0.1,
-        mutation_probability = 0.1,
+        mutation_probability = 0.25, 
         # 变换概率...
-        transposition_probability = 0.05,
+        transposition_probability = 0.1,
         retrograde_probability = 0.05,
         inversion_probability = 0.05,
         retrograde_inversion_probability = 0.03):
 
     if model is None: return []
-    print(f"🚀 High-Performance GA Start (Pop: {n})...")
+    print(f"High-Performance GA Start (Pop: {n})...")
 
     # 1. 初始化种群
     initial_pop = [generate_random_melody(rest_probability=0.01, tie_probability=0.1) for _ in range(n)]
@@ -479,20 +479,22 @@ def run(alpha: float = 0.5,
 
 def mutation_fast(mel_arr: np.ndarray) -> np.ndarray:
     # 这里的 mel_arr 是 (32,) 的 numpy 数组
-    # 直接修改它 (in-place) 或者 copy 都可以
-    # 上面调用时已经 copy 过了
-    pos = random.randint(0, 31)
+    num_mutations = random.randint(1, 3)
     
-    # 逻辑同原版，只是操作的是 array
-    if random.random() < 0.01: # rest_prob
-        mel_arr[pos] = REST_CODE
-        return mel_arr
+    for _ in range(num_mutations):
+        pos = random.randint(0, 31)
         
-    can_be_tie = (pos > 0 and mel_arr[pos - 1] != REST_CODE)
-    if can_be_tie and random.random() < 0.1: # tie_prob
-        mel_arr[pos] = TIE_CODE
-        return mel_arr
+        # 逻辑同原版，只是操作的是 array
+        if random.random() < 0.05: # rest_prob 稍微提高一点
+            mel_arr[pos] = REST_CODE
+            continue
+            
+        can_be_tie = (pos > 0 and mel_arr[pos - 1] != REST_CODE)
+        if can_be_tie and random.random() < 0.1: # tie_prob
+            mel_arr[pos] = TIE_CODE
+            continue
+            
+        mel_arr[pos] = random.randint(MIN_NOTE_CODE, MAX_NOTE_CODE)
         
-    mel_arr[pos] = random.randint(MIN_NOTE_CODE, MAX_NOTE_CODE)
     return mel_arr
 

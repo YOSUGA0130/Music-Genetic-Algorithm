@@ -104,7 +104,7 @@ if __name__ == "__main__":
     if mode == "lstm":
         # LSTM 模式: 直接调用 fitness_lstm.py 中的 run 函数 (因为一些机制实在不一样)
         from fitness_lstm import run as run_lstm
-        result = run_lstm(alpha=0.3, m=100, n=2000)
+        result = run_lstm(alpha=0.3, m=200, n=2000)
     elif mode == "rule_enhance":
         # 优化后的规则模式：直接调用 fitness_rule_enhance.py 中的 run 函数，因为优化修改了框架
         result = run_enhance(alpha=0.85,n=20,look_ahead_steps=15, m=2000,fitness=fitness_enhanced,num_bars=8)
@@ -115,7 +115,6 @@ if __name__ == "__main__":
         print("没有找到适应度大于等于α的旋律")
     else:
         print(f"生成了 {len(result)} 条旋律")
-        print(result)
         
         for idx, mel in enumerate(result):
             if idx >= 10: break
