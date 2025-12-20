@@ -167,6 +167,56 @@ except Exception as e:
 
 # ================= 4. 并行版 Fitness 函数 (核心修改) =================
 
+def _calc_penalty(n):
+    """
+    计算连续休止或延长的惩罚系数
+    1次连续：1.0（无惩罚）
+    2次连续：0.9（10%惩罚）
+    3-4次连续：0.7（30%惩罚）
+    5次连续：0.7 × 0.5 = 0.35
+    6次连续：0.7 × 0.5² = 0.175
+    ...
+    """
+    if n <= 1: return 1.0
+    if n == 2: return 0.9
+    if n <= 4: return 0.7
+    return 0.7 * (0.5 ** (n - 4))
+
+def batch_structure_penalty(melodies_array):
+    """
+    批量计算结构惩罚
+    """
+    N, L = melodies_array.shape
+    penalties = np.ones(N, dtype=np.float32)
+    
+    for i in range(N):
+        melody = melodies_array[i]
+        p = 1.0
+        cur_run = 0
+        cur_type = None # REST_CODE or TIE_CODE
+        
+        for j in range(L):
+            val = melody[j]
+            if val == REST_CODE or val == TIE_CODE:
+                if val == cur_type:
+                    cur_run += 1
+                else:
+                    if cur_run > 1:
+                        p *= _calc_penalty(cur_run)
+                    cur_type = val
+                    cur_run = 1
+            else:
+                if cur_run > 1:
+                    p *= _calc_penalty(cur_run)
+                cur_type = None
+                cur_run = 0
+        
+        if cur_run > 1:
+            p *= _calc_penalty(cur_run)
+            
+        penalties[i] = p
+    return penalties
+
 def fitness_batch(melodies_array: np.ndarray) -> np.ndarray:
     """
     输入: (N, 32) Numpy Array
@@ -208,7 +258,12 @@ def fitness_batch(melodies_array: np.ndarray) -> np.ndarray:
             scores_tensor = torch.exp(-nll_batch)
             all_scores.append(scores_tensor.cpu().numpy())
                 
-    return np.concatenate(all_scores)
+    lstm_scores = np.concatenate(all_scores)
+    
+    # === 新增：结构惩罚 ===
+    struct_penalties = batch_structure_penalty(melodies_array)
+    
+    return lstm_scores * struct_penalties
     
 
 def run(alpha: float = 0.5,

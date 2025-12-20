@@ -1,29 +1,35 @@
 ## 1. 快速开始
 
-- 克隆仓库：
+#### 克隆仓库：
 
 ```bash
 git clone https://github.com/YOSUGA0130/Music-Genetic-Algorithm.git
 cd Music-Genetic-Algorithm
 ```
 
-- 安装依赖：
+#### 安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-- 因为需要使用 LSTM 神经网络，请从[https://disk.pku.edu.cn/link/AACD3AE31B31214418A077A3F157923984](1)下载 LSTM 模型权重文件 `lstm_24.pth`，放置在 `model/` 目录下
-- 运行主程序：
+#### 下载 LSTM 模型权重：
+
+因为需要使用 LSTM 神经网络，请[ 点击此处 ](https://disk.pku.edu.cn/link/AACD3AE31B31214418A077A3F157923984)下载 LSTM 模型权重文件 `lstm_24.pth`，放置在 `model/` 目录下
+
+#### 运行主程序：
 
 ```bash
 python3 main.py
 ```
 
-            三个可选适应度函数：
-                1. 规则算法
-                2. LSTM模型
-                3. 优化后的规则算法
+三个可选适应度函数：
+
+1. 规则算法
+
+2. LSTM 模型
+
+3. 优化后的规则算法
 
 ## 2. 项目结构
 
