@@ -2,16 +2,16 @@
 """
 优化后的遗传算法 - 核心评价体系：fitness_enhanced
 采用五个维度的评价：
-"temperament":         0.30,  # 律学与音程协和度
-        "tonality":    0.40,  # 调式功能
-        "pc_set":      0.10,  # 音类集合色彩
-        "rhythm":      0.10,  # 节奏奇性与活力
-        "symmetry":    0.10   # 旋律对称与结构冗余
+		"temperament": 	# 律学与音程协和度
+        "tonality":     # 调式功能
+        "pc_set":       # 音类集合色彩
+        "rhythm":       # 节奏奇性与活力
+        "symmetry":    	# 旋律对称与结构冗余
 
-优先保证调性逻辑（40%），其次是音程的物理协和程度（30%），局部色彩、节奏与旋律对称相对后置（各占10%）。
-更高小节数可以考虑微调旋律占比，更低小节数考虑微调节奏占比。
+优先保证调性逻辑，其次是音程的物理协和程度，把局部色彩、节奏与旋律对称相对后置。
+使用线性插值方法，让权重随小节数平滑过渡。
 
-支持 4 小节/8 小节旋律生成
+支持 1-16 小节旋律生成，每小节 8 个八分音符
 """
 
 import random
@@ -302,23 +302,27 @@ def _eval_rhythm_dimension(mel: List[int]) -> float:
 	density = sum(onsets) / len(mel)
 	density_score = 1.0 - abs(density - IDEAL_DENSITY) * 2
 
+	# 动态推算当前旋律的小节数
+	current_num_bars = len(mel) // 8
+
 	# 2. 节奏奇性
 	# 根据上课的定义：如果一个节奏型旋转后无法与自身“对角”重合，则具有奇性。
 	# 如果强拍和次强拍完全一样（过于对称），奇性分降低。
 	oddity_sum = 0.0
-	for b in range(NUM_BARS):
+	for b in range(current_num_bars):
 		bar = onsets[b * 8: (b + 1) * 8]
 		# 检查半周期对称性：如果 bar[i] == bar[i+4]，则不具有奇性
 		symmetry_points = sum(1 for i in range(4) if bar[i] == bar[i + 4])
 		# 对称点越少，奇性越高
 		oddity_sum += (1.0 - symmetry_points / 4.0)
-	oddity_score = oddity_sum / NUM_BARS
+
+	oddity_score = oddity_sum / current_num_bars if current_num_bars > 0 else 0.0
 
 	# 3. 轮廓同构
 	# 我们希望节奏有“结构”，即第一小节的节奏型和第三小节最好相似或相同
 	# 但如果完全四个小节都一样，则会被惩罚。
 	bar_patterns = []
-	for b in range(NUM_BARS):
+	for b in range(current_num_bars):  # 修改：NUM_BARS -> current_num_bars
 		bar_patterns.append(tuple(onsets[b * 8: (b + 1) * 8]))
 
 	unique_patterns = len(set(bar_patterns))
@@ -354,126 +358,48 @@ def _eval_rhythm_dimension(mel: List[int]) -> float:
 	return round(max(0.0, rhythm_total), 4)
 
 
-def _eval_symmetry_dimension_8bars(mel: List[int], real_notes: List[Tuple[int, int]]) -> float:
+def _eval_symmetry_structure_classical(mel: List[int], real_notes: List[Tuple[int, int]]) -> float:
 	"""
 	维度五：旋律对称与结构评价
-	1. 放宽对调性移调的宽容，允许在自然音阶内的度数移动，不强求半音精确。
-	2. 奖励音阶饱和度：在 8 小节内，自然音阶的 7 个音（CDEFGAB）都出现过。
-	3. 惩罚机械重复。为了提高古典感，也惩罚黑键音
-	"""
-	if len(mel) < 64: return 0.5
-
-	bars_pcs = []
-	for i in range(8):
-		bar_data = mel[i * 8: (i + 1) * 8]
-		pcs = [get_pitch_class(x) if x > 0 else x for x in bar_data]
-		bars_pcs.append(pcs)
-
-	motif_front = bars_pcs[0]
-
-	# 1. 调性移调检查
-	# 如果 Bar 2 是 Bar 1 在调式内的平移，可给高分
-	meaningful_logic = 0
-	for i in [1, 2, 4, 5]:
-		is_related, _ = _is_transform_related(motif_front, bars_pcs[i])
-		if is_related: meaningful_logic += 1
-
-	# 2. 机械重复控制
-	# 古典乐喜欢 A-A-B-A。如果只有一个小节重复，不惩罚；超过 3 个才惩罚。
-	repeats = sum(1 for i in range(1, 8) if bars_pcs[i] == motif_front)
-	repeat_penalty = 0.0
-	if repeats >= 3:
-		repeat_penalty = 0.3
-	elif repeats == 0:
-		repeat_penalty = 0.1  # 过于碎片
-
-	# 3. 自然音饱和度
-	# 奖励：在 8 小节内是否用满了 C 大调的 7 个音
-	unique_pcs = {get_pitch_class(n[1]) for n in real_notes if n[1] > 0}
-	natural_found = unique_pcs.intersection(TARGET_SCALE_PCS)
-	saturation_score = len(natural_found) / 7.0
-
-	# 额外惩罚：如果用了黑键音，在结构分里也扣分，强化古典感
-	accidental_penalty = sum(0.1 for p in unique_pcs if p not in TARGET_SCALE_PCS)
-
-	final_score = (meaningful_logic / 4.0) * 0.4 + saturation_score * 0.6 - repeat_penalty - accidental_penalty
-	return round(max(0.0, min(1.0, final_score)), 4)
-
-
-def _eval_symmetry_dimension(mel: List[int], real_notes: List[Tuple[int, int]]) -> float:
-	"""
-	对四小节特化版的旋律评价，考虑第一小节（母题）与后续小节的关系。
+	考虑第一小节（母题）与后续小节的关系。
 	   - 如果是四类给定变换关系且不等于原母题：获得高分奖励。
 	   - 如果是完全一样的重复：进行惩罚，因为这在进化初期会导致单调。
-	结合巴比特的音类覆盖率，奖励在 4 小节内尽可能用满 12 个音类的序列。
+	结合巴比特的音类覆盖率，奖励在全长内尽可能用满 7 个音类的序列。
 	"""
-	# 基础检查：确保旋律长度覆盖 4 小节
-	if len(mel) < 32:
-		return 0.5
+	num_bars = len(mel) // 8
+	if num_bars < 1: return 0.5
 
-	# 分割小节并提取音类
 	bars_pcs = []
-	for i in range(4):
+	for i in range(num_bars):
 		bar_data = mel[i * 8: (i + 1) * 8]
-		pcs = [get_pitch_class(x) if x > 0 else x for x in bar_data]
-		bars_pcs.append(pcs)
+		bars_pcs.append([get_pitch_class(x) if x > 0 else x for x in bar_data])
 
-	motif = bars_pcs[0]
-
-	meaningful_transforms = 0  # 有意义的变换次数
-	literal_repeats = 0  # 机械重复次数
-	found_relations = set()  # 记录出现的变换类型
-
-	# 母题发展检测
-	for i in range(1, 4):
-		target_bar = bars_pcs[i]
-
-		# 1.检查是否为机械重复
-		if target_bar == motif:
-			literal_repeats += 1
-			continue
-
-		# 2. 检查是否存在 T, I, R, RI 变换
-		is_related, rel_type = _is_transform_related(motif, target_bar)
-
-		if is_related:
-			meaningful_transforms += 1
-			found_relations.add(rel_type)
-
-	# 计算结构分数
-	# 评分：
-	# 0 次变换: 0.2 (缺乏逻辑关联)
-	# 1 次变换: 0.7 (基本的母题呼应)
-	# 2 次变换: 1.0 (优良的结构化，类似 A-A'-A''-B)
-	# 3 次变换: 0.9 (非常紧凑，但略显死板)
-	if meaningful_transforms == 0:
-		motif_score = 0.2
-	elif meaningful_transforms == 1:
-		motif_score = 0.7
-	elif meaningful_transforms == 2:
-		motif_score = 1.0
+	# 母题发展
+	meaningful_logic = 0
+	if num_bars > 1:
+		motif = bars_pcs[0]
+		for i in range(1, num_bars):
+			# 检查与第一小节的对称/移调关系
+			is_related, _ = _is_transform_related(motif, bars_pcs[i])
+			if is_related and bars_pcs[i] != motif:
+				meaningful_logic += 1
+		motif_score = min(1.0, (meaningful_logic / (num_bars - 1)) * 1.5) if num_bars > 1 else 1.0
 	else:
-		motif_score = 0.9
+		motif_score = 0.5  # 单小节无对比，给中值
 
-	# 如果变换类型多样（既有移调又有倒影），给予额外的小奖励
-	if len(found_relations) > 1:
-		motif_score = min(1.0, motif_score + 0.1)
-
-	# 机械重复惩罚
-	# 适当的重复是好的，但遗传算法容易陷入全相同的局部最优解
-	# 每个完全重复的小节扣除 0.2 分
-	penalty = literal_repeats * 0.2
-
-	# 音类覆盖率得分
-	# 基于《音类集合与新黎曼理论》和勋伯格十二音技术
-	# 检查整段旋律用了多少个不同的音类
+	# 自然音饱和度 (7音利用率)
 	unique_pcs = {get_pitch_class(n[1]) for n in real_notes if n[1] > 0}
-	coverage_score = len(unique_pcs) / 12.0  # 代表 12 个音全用了
+	natural_found = unique_pcs.intersection(TARGET_SCALE_PCS)
+	# 小节越多，越应该用满 7 个音
+	saturation_target = 7 if num_bars >= 4 else (3 + num_bars)
+	saturation_score = min(1.0, len(natural_found) / saturation_target)
 
-	# 综合加权
-	# 结构逻辑占 60%，音类丰富度占 40%
-	final_score = (motif_score * 0.6 + coverage_score * 0.4) - penalty
+	# 机械重复与调外音惩罚
+	repeats = sum(1 for i in range(1, num_bars) if bars_pcs[i] == bars_pcs[0])
+	repeat_penalty = max(0, (repeats - (num_bars // 4)) * 0.15)
+	accidental_penalty = sum(0.15 for p in unique_pcs if p not in TARGET_SCALE_PCS)
 
+	final_score = (motif_score * 0.4 + saturation_score * 0.6) - repeat_penalty - accidental_penalty
 	return round(max(0.0, min(1.0, final_score)), 4)
 
 
@@ -481,50 +407,46 @@ def _eval_symmetry_dimension(mel: List[int], real_notes: List[Tuple[int, int]]) 
 
 def fitness_enhanced(mel: List[int], num_bars: int = 4) -> float:
 	"""
-	增强型适应度函数：基于五个维度评价旋律质量
-	接口保持与原项目一致，返回 0.0 ~ 1.0 之间的浮点数。
+		增强型适应度函数：基于五个维度评价旋律质量
+		使用线性插值思想，让权重随小节数平滑过渡。
+		接口保持与原项目一致，返回 0.0 ~ 1.0 之间的浮点数。
 	"""
-	# 基础合法性检查
-	if not mel or all(x <= 0 for x in mel):
-		return 0.0
+	if not mel or all(x <= 0 for x in mel): return 0.0
+	real_notes = get_real_notes_with_indices(mel)
+	if not real_notes: return 0.0
 
-	# 数据预处理
-	real_notes = get_real_notes_with_indices(mel)  # (index, code)
-	if not real_notes:
-		return 0.0
+	# 动态权重分配逻辑
+	# 节越多，Symmetry 权重越高 (0.0 -> 0.25)；小节越少，Rhythm 权重越高 (0.25 -> 0.05)
+	# 调性和律学作为基础，保持相对稳定
+	ratio = min(1.0, (num_bars - 1) / 15.0)  # 1-16小节的进度条
 
-	# 定义五个维度的权重 (可根据创作偏好调整，此处给出为古典音乐版)
-	# 建议总和为 1.0
-	weights = {
-		"temperament": 0.30,  # 提高：物理协和是古典美的基石
-		"tonality": 0.40,  # 核心：调性逻辑必须占大头
-		"pc_set": 0.10,  # 辅助：局部色彩
-		"rhythm": 0.10,  # 辅助：节奏平稳
-		"symmetry": 0.10  # 辅助：结构呼应
-	}
+	w_sym = 0.05 + (0.20 * ratio)  # 5% 到 25%
+	w_rhy = 0.20 - (0.15 * ratio)  # 20% 到 5%
+	w_tonal = 0.45 - (0.10 * ratio)  # 45% 到 35% (长旋律调性略微放宽给结构腾位置)
+	w_temp = 0.30  # 恒定 30%
+	w_pc = 1.0 - (w_sym + w_rhy + w_tonal + w_temp)  # 剩余给局部色彩
 
-	# 调用各个维度的评价子函数
+	# 作为参考，8 小节时的参数如下
+	# "temperament": 0.3000  # 律学与音程协和度
+	# "tonality": 0.4033     # 调式功能
+	# "pc_set": 0.0234       # 音类集合色彩
+	# "rhythm": 0.1300       # 节奏奇性与活力
+	# "symmetry": 0.1433     # 旋律对称与结构冗余
+
+	# 调用子函数
 	score_temp = _eval_temperament_dimension(real_notes)
 	score_tonal = _eval_tonality_dimension(mel, real_notes)
 	score_pcset = _eval_pc_set_dimension(real_notes)
 	score_rhythm = _eval_rhythm_dimension(mel)
-	score_symmetry = _eval_symmetry_dimension(mel, real_notes)
+	score_symmetry = _eval_symmetry_structure_classical(mel, real_notes)
 
-	# 分情况讨论评价对称性，4/8小节使用函数不同
-	if num_bars == 8:
-		score_symmetry = _eval_symmetry_dimension_8bars(mel, real_notes)
-	else:
-		score_symmetry = _eval_symmetry_dimension(mel, real_notes)
-
-	# 加权总分计算
 	total_score = (
-			score_temp * weights["temperament"] +
-			score_tonal * weights["tonality"] +
-			score_pcset * weights["pc_set"] +
-			score_rhythm * weights["rhythm"] +
-			score_symmetry * weights["symmetry"]
+			score_temp * w_temp +
+			score_tonal * w_tonal +
+			score_pcset * w_pc +
+			score_rhythm * w_rhy +
+			score_symmetry * w_sym
 	)
-
 	return round(float(total_score), 4)
 
 
@@ -694,9 +616,11 @@ def run(alpha: float = 0.5,
 	return final_filtered
 
 if __name__ == "__main__":
-	# look_ahead_steps决定局部深挖的步数，与m、n一样与耗时线性相关
-	# 实测超过2000轮迭代后提升微小。目前参数较优
-	result = run(alpha=0.85,n=20,look_ahead_steps=15, m=2000,fitness=fitness_enhanced,num_bars=8)
+	# 支持1-16小节生成。建议n、look_ahead_steps、m随生成小节数上升而适当上升
+	# 小节数上升时需要更大的种群提供交叉，需要更深地探索局部性，需要更多的迭代轮次以理解规则
+	# 8 小节时，参考：alpha=0.85,n=15,look_ahead_steps=10, m=1500,fitness=fitness_enhanced,num_bars=8
+	# 16 小节时，参考：alpha=0.85,n=20,look_ahead_steps=20, m=500(时间妥协),fitness=fitness_enhanced,num_bars=16
+	result = run(alpha=0.85,n=20,look_ahead_steps=20, m=500,fitness=fitness_enhanced,num_bars=8)
 	print(result)
 	for idx, mel in enumerate(result):
 		output_path = f"./output/genetic_algorithm_result_{idx + 1}.wav"
