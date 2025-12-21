@@ -17,6 +17,7 @@ from genetics import (
 )
 from population import generate_random_melody
 from fitness_rule import fitness
+from fitness_rule_enhance import run as run_enhance, fitness_enhanced
 import numpy as np
 
 def run(fitness_func,
@@ -79,7 +80,7 @@ def run(fitness_func,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="运行机器作曲·遗传算法")
-    parser.add_argument("--mode", type=str, choices=["rule", "lstm"], help="选择适应度评估模式: 'rule' (规则算法) 或 'lstm' (lstm神经网络)")
+    parser.add_argument("--mode", type=str, choices=["rule", "lstm", "rule_enhance"], help="选择适应度评估模式: 'rule' (规则算法), 'lstm' (lstm神经网络) 或 'rule_enhance' (优化后的规则算法)")
     args = parser.parse_args()
 
     # 如果没有通过命令行指定模式，则交互式询问用户
@@ -87,12 +88,15 @@ if __name__ == "__main__":
         print("\n请选择适应度评估模式:")
         print("1. 规则算法")
         print("2. LSTM模型")
-        choice = input("请输入选项 (1/2) [默认: 1]: ").strip()
+        print("3. 优化后的规则算法")
+        choice = input("请输入选项 (1/2/3) [默认: 3]: ").strip()
         
-        if choice == "2":
+        if choice == "1":
+            mode = "rule"
+        elif choice == "2":
             mode = "lstm"
         else:
-            mode = "rule"
+            mode = "rule_enhance"
     else:
         mode = args.mode
 
@@ -100,7 +104,10 @@ if __name__ == "__main__":
     if mode == "lstm":
         # LSTM 模式: 直接调用 fitness_lstm.py 中的 run 函数 (因为一些机制实在不一样)
         from fitness_lstm import run as run_lstm
-        result = run_lstm(alpha=0.3, m=100, n=2000)
+        result = run_lstm(alpha=0.3, m=200, n=2000)
+    elif mode == "rule_enhance":
+        # 优化后的规则模式：直接调用 fitness_rule_enhance.py 中的 run 函数，因为优化修改了框架
+        result = run_enhance(alpha=0.85,n=20,look_ahead_steps=15, m=2000,fitness=fitness_enhanced,num_bars=8)
     else:
         result = run(fitness_func=fitness, alpha=0.9, m=10000, n=10)
     
@@ -108,7 +115,6 @@ if __name__ == "__main__":
         print("没有找到适应度大于等于α的旋律")
     else:
         print(f"生成了 {len(result)} 条旋律")
-        print(result)
         
         for idx, mel in enumerate(result):
             if idx >= 10: break

@@ -1,25 +1,35 @@
 ## 1. 快速开始
 
-- 克隆仓库：
+#### 克隆仓库：
 
 ```bash
 git clone https://github.com/YOSUGA0130/Music-Genetic-Algorithm.git
 cd Music-Genetic-Algorithm
 ```
 
-- 安装依赖：
+#### 安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-- 如果要使用 LSTM 神经网络，请从[https://disk.pku.edu.cn/link/AACD3AE31B31214418A077A3F157923984](1)下载 LSTM 模型权重文件 `lstm_24.pth`，放置在 `model/` 目录下
+#### 下载 LSTM 模型权重：
 
-- 运行主程序：
+因为需要使用 LSTM 神经网络，请[ 点击此处 ](https://disk.pku.edu.cn/link/AACD3AE31B31214418A077A3F157923984)下载 LSTM 模型权重文件 `lstm_24.pth`，放置在 `model/` 目录下
+
+#### 运行主程序：
 
 ```bash
 python3 main.py
 ```
+
+三个可选适应度函数：
+
+1. 规则算法
+
+2. LSTM 模型
+
+3. 优化后的规则算法
 
 ## 2. 项目结构
 
@@ -30,6 +40,7 @@ project_root/
   population.py         # 初始种群生成逻辑
   genetics.py           # 遗传操作
   fitness_rule.py       # 基于规则的适应度函数
+  fitness_rule_enhance.py # 优化后的基于规则的适应度函数
   fitness_lstm.py       # 基于LSTM的适应度函数
   fitness_llm.py        # 基于prompt工程的适应度函数
 
@@ -141,3 +152,38 @@ retrograde_inversion（逆行倒影）：逆行倒影的复合变换
 $$
 Fitness = \frac{1}{PPL} = e^{-\text{NLL}} = \exp\left( \frac{1}{N} \sum_{i=1}^{N} \log P(x_i \mid x_{< i}) \right)
 $$
+
+## 7.规则算法优化说明
+
+### 1. run 加了局部贪心
+
+- 发现了原本 run 中一旦达到阈值就不会继续更新的问题（会一直停在超过阈值的值上，比如 0.92），采用贪心的方式，搜索局部，让音乐一直更新取得更高分。
+
+### 2. run 加了自适应概率调整
+
+- 在迭代后期种群同质化，交叉和音乐变换没有引入新变化，分数卡住。
+- 修改后，run 在检测到超过 150 轮分数不变后会把变异率提到 0.9（设置的）。实测部分解决了超过 500 轮后不动的情况。
+
+### 3. 支持 8 小节
+
+- 在 run 和 fitness、fitness_enhance 中加了 num_bars 参数
+
+### 4. fitness_enhanced
+
+- 改成了五个维度的评价标准。根据王老师的课件分为以下五个维度。#### 维度一：律学与音程协和度
+
+  #### 维度二：调式功能与解决
+
+  #### 维度三：音类集合色彩 (距离向量)
+
+  #### 维度四：节奏奇性与活力
+
+  #### 维度五：旋律对称与结构冗余
+
+- 新函数很难高分，目前上限约 0.9，但 0.7 分的听感比原来 1 分的 fitness 高很多。
+
+### 5. 实测调参结果
+
+- ```
+  result = run(alpha=0.85, n=20, m=2000, look_ahead_steps=15, num_bars=8)
+  ```

@@ -15,6 +15,7 @@ from config import *
 from genetics import (MAX_TRANSFORM_ATTEMPTS, TRANSPOSITION_SEMITONE_RANGE, INVERSION_AXIS_SCOPE, OUT_OF_RANGE_THRESHOLD,
                       roulette_wheel_selection, crossover, _apply_and_check_transform, _is_transform_acceptable,
                       transposition, retrograde, inversion, retrograde_inversion)
+from fitness_rule_enhance import fitness_enhanced
 
 # ================= LSTM 模型配置 (必须与训练时一致) =================
 MODEL_PATH = "model/lstm_24.pth"  # 请确保这个文件存在
@@ -167,63 +168,164 @@ except Exception as e:
 
 # ================= 4. 并行版 Fitness 函数 (核心修改) =================
 
+def _calc_penalty(n):
+    """
+    计算连续休止或延长的惩罚系数
+    1次连续：1.0（无惩罚）
+    2次连续：0.9（10%惩罚）
+    3-4次连续：0.7（30%惩罚）
+    5次连续：0.7 × 0.5 = 0.35
+    6次连续：0.7 × 0.5² = 0.175
+    ...
+    """
+    if n <= 1: return 1.0
+    if n == 2: return 0.9
+    if n <= 4: return 0.7
+    return 0.7 * (0.5 ** (n - 4))
+
+def batch_structure_penalty(melodies_array):
+    """
+    批量计算结构惩罚
+    """
+    N, L = melodies_array.shape
+    penalties = np.ones(N, dtype=np.float32)
+    
+    for i in range(N):
+        melody = melodies_array[i]
+        p = 1.0
+        cur_run = 0
+        cur_type = None # REST_CODE or TIE_CODE
+        
+        for j in range(L):
+            val = melody[j]
+            if val == REST_CODE or val == TIE_CODE:
+                if val == cur_type:
+                    cur_run += 1
+                else:
+                    if cur_run > 1:
+                        p *= _calc_penalty(cur_run)
+                    cur_type = val
+                    cur_run = 1
+            else:
+                if cur_run > 1:
+                    p *= _calc_penalty(cur_run)
+                cur_type = None
+                cur_run = 0
+        
+        if cur_run > 1:
+            p *= _calc_penalty(cur_run)
+            
+        penalties[i] = p
+    return penalties
+
 def fitness_batch(melodies_array: np.ndarray) -> np.ndarray:
     """
     输入: (N, 32) Numpy Array
     输出: (N, ) Numpy Array
+    
+    混合评分策略：
+    1. 第一小节 (0-7): 使用 fitness_rule_enhance 进行规则评分 (权重 0.25)
+    2. 后三小节 (8-31): 使用 LSTM 模型评分 + 结构惩罚 (权重 0.75)
     """
     if melodies_array.size == 0 or model is None:
         return np.zeros(len(melodies_array))
     
-    all_scores = []
     total_count = len(melodies_array)
     
+    # === Part 1: 第一小节规则评分 ===
+    # 提取第一小节 (N, 8)
+    part_rule = melodies_array[:, :8]
+    rule_scores = np.zeros(total_count, dtype=np.float32)
+    
+    # 由于 fitness_enhanced 是单体函数，这里使用循环
+    # 考虑到性能，如果 N 很大，这里可能是瓶颈，但规则计算通常比 LSTM 快
+    for i in range(total_count):
+        # 转为 list 传给 fitness_enhanced
+        # num_bars=1 表示只评估这一个小节
+        rule_scores[i] = fitness_enhanced(part_rule[i].tolist(), num_bars=1)
+        
+    # === Part 2: 后三小节 LSTM 评分 (带上下文) ===
+    # 关键修改：输入完整旋律，但只计算后三小节的 Loss
+    
+    all_lstm_scores = []
     model.eval()
     
     with torch.no_grad():
         for i in range(0, total_count, BATCH_SIZE):
-            # 1. 切片 (Numpy切片是视图，极快)
+            # 1. 切片 (取完整旋律)
             mini_batch = melodies_array[i : min(i + BATCH_SIZE, total_count)]
             
-            # 2. 极速编码 (Vectorized)
+            # 2. 编码 (完整 32 长度)
             encoded_idx = vocab.encode_batch_numpy(mini_batch)
             
-            # 3. 转 Tensor (GPU)
-            batch_tensor = torch.from_numpy(encoded_idx).to(DEVICE) # from_numpy 共享内存
+            # 3. 转 Tensor
+            batch_tensor = torch.from_numpy(encoded_idx).to(DEVICE)
             
             # 4. 推理
+            # 输入: [0...30], 目标: [1...31]
             inputs = batch_tensor[:, :-1]
             targets = batch_tensor[:, 1:]
             
             logits = model(inputs) 
             
-            # 5. Loss
+            # 5. Loss 计算 (带 Mask)
             loss_fn = nn.CrossEntropyLoss(reduction='none') 
+            
+            # 计算所有位置的 Loss: (Batch, 31)
+            # 注意：logits 是 (Batch, 31, Vocab), targets 是 (Batch, 31)
+            # 为了使用 CrossEntropyLoss，我们需要 reshape
             loss_flat = loss_fn(logits.reshape(-1, len(vocab)), targets.reshape(-1))
-            loss_matrix = loss_flat.view(len(mini_batch), -1)
-            nll_batch = loss_matrix.mean(dim=1)
+            loss_matrix = loss_flat.view(len(mini_batch), -1) # (Batch, 31)
+            
+            # 关键：只取后 24 个时间步的 Loss (对应后三小节)
+            # 索引 0-6 对应第一小节的预测 (预测第 1-7 个音)，索引 7 对应预测第 8 个音
+            # 我们需要评估的是从第 8 个音开始的预测准确性
+            # targets 的索引：
+            # idx 0: target is note[1] (bar 1)
+            # ...
+            # idx 6: target is note[7] (bar 1 end)
+            # idx 7: target is note[8] (bar 2 start) -> 这是我们要开始评估的第一个点
+            
+            # 所以我们取 loss_matrix[:, 7:]
+            relevant_loss = loss_matrix[:, 7:]
+            
+            # 计算平均 NLL
+            nll_batch = relevant_loss.mean(dim=1)
             
             # 6. 转回 CPU
-            # exp(-nll) 可以直接在 GPU 上算完再转回来，省一点 CPU 算力
             scores_tensor = torch.exp(-nll_batch)
-            all_scores.append(scores_tensor.cpu().numpy())
+            all_lstm_scores.append(scores_tensor.cpu().numpy())
                 
-    return np.concatenate(all_scores)
+    lstm_raw_scores = np.concatenate(all_lstm_scores)
+    
+    # === Part 3: 结构惩罚 (仅针对 LSTM 部分) ===
+    # 计算后三小节的结构惩罚
+    part_lstm = melodies_array[:, 8:] # 依然只对后三小节计算惩罚
+    struct_penalties = batch_structure_penalty(part_lstm)
+    
+    # LSTM 部分最终得分
+    lstm_final_scores = lstm_raw_scores * struct_penalties
+    
+    # === Part 4: 综合评分 ===
+    # 权重分配：1小节 vs 3小节 -> 0.25 : 0.75
+    final_scores = 0.25 * rule_scores + 0.75 * lstm_final_scores
+
+    return final_scores * 2.0
     
 
 def run(alpha: float = 0.5,
         m = 200,
         n = 10000, 
         crossover_probability = 0.1,
-        mutation_probability = 0.1,
+        mutation_probability = 0.25, 
         # 变换概率...
-        transposition_probability = 0.05,
+        transposition_probability = 0.1,
         retrograde_probability = 0.05,
         inversion_probability = 0.05,
         retrograde_inversion_probability = 0.03):
 
     if model is None: return []
-    print(f"🚀 High-Performance GA Start (Pop: {n})...")
+    print(f"High-Performance GA Start (Pop: {n})...")
 
     # 1. 初始化种群
     initial_pop = [generate_random_melody(rest_probability=0.01, tie_probability=0.1) for _ in range(n)]
@@ -377,20 +479,22 @@ def run(alpha: float = 0.5,
 
 def mutation_fast(mel_arr: np.ndarray) -> np.ndarray:
     # 这里的 mel_arr 是 (32,) 的 numpy 数组
-    # 直接修改它 (in-place) 或者 copy 都可以
-    # 上面调用时已经 copy 过了
-    pos = random.randint(0, 31)
+    num_mutations = random.randint(1, 3)
     
-    # 逻辑同原版，只是操作的是 array
-    if random.random() < 0.01: # rest_prob
-        mel_arr[pos] = REST_CODE
-        return mel_arr
+    for _ in range(num_mutations):
+        pos = random.randint(0, 31)
         
-    can_be_tie = (pos > 0 and mel_arr[pos - 1] != REST_CODE)
-    if can_be_tie and random.random() < 0.1: # tie_prob
-        mel_arr[pos] = TIE_CODE
-        return mel_arr
+        # 逻辑同原版，只是操作的是 array
+        if random.random() < 0.05: # rest_prob 稍微提高一点
+            mel_arr[pos] = REST_CODE
+            continue
+            
+        can_be_tie = (pos > 0 and mel_arr[pos - 1] != REST_CODE)
+        if can_be_tie and random.random() < 0.1: # tie_prob
+            mel_arr[pos] = TIE_CODE
+            continue
+            
+        mel_arr[pos] = random.randint(MIN_NOTE_CODE, MAX_NOTE_CODE)
         
-    mel_arr[pos] = random.randint(MIN_NOTE_CODE, MAX_NOTE_CODE)
     return mel_arr
 
